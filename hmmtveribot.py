@@ -1,36 +1,66 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import os
-import pickle
 import discord
 import boto3
-from boto3.dynamodb.conditions import Key
-from discord.ext import commands
+from discord.ext import commands, tasks
 from discord.utils import get
 from dotenv import load_dotenv
 
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
-#GUILD = os.getenv('DISCORD_GUILD')
+GUILD = os.getenv('DISCORD_GUILD')
 
 dynamodb = boto3.client('dynamodb')
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
+not_verified_users = []
+
+
 @bot.event
-async def on_message(message):
-    if message.content.startswith("!verify"):
-        await message.channel.send(
-            f'Hi {message.author}, welcome to the 2020 HMMT November server! If you are registered for HMMT, you will receive the verified role in the server. If you did not get the role and believe this is a mistake, please DM a moderator!'
+async def on_ready():
+    recheck_members.start()
+
+
+@bot.event
+async def on_member_join(member):
+    await member.create_dm()
+    await member.dm_channel.send(
+        f'Hi {member.name}, welcome to the 2020 HMMT November server! If you are registered for HMMT, you will receive the verified role in the server. If you did not get the role and believe this is a mistake, please DM a moderator!'
+    )
+    if verify_member(member):
+        role = get(member.guild.roles, name='Competitor')
+        await member.add_roles(role)
+        print(f"{member.name} was given role Competitor")
+    else:
+        not_verified_users.append(member)
+        await member.dm_channel.send("We are not able to verify you at this time. Please enter your discord ID on the HMMO website")
+
+
+def verify_member(member):
+    response = dynamodb.query(
+        TableName='Discord',
+        KeyConditionExpression="DiscordHandle = :name",
+        ExpressionAttributeValues={
+            ":name": {"S": str(member.name)}
+            }
         )
-        response = dynamodb.query(
-            TableName='Discord',
-            KeyConditionExpression="DiscordHandle = :name",
-            ExpressionAttributeValues={
-                ":name": {"S": str(message.author)}
-                }
-            )
-        await message.channel.send(response['Items'])
+    if 'DiscordHandle' in response['Items']:
+        return True
+    else:
+        return False
+
+
+@tasks.loop(seconds=5)
+async def recheck_members():
+    if not_verified_users != []:
+        for each_member in not_verified_users:
+            if verify_member(each_member):
+                role = get(each_member.guild.roles, name='Competitor')
+                await each_member.add_roles(role)
+                print(f"{each_member.name} was given role Competitor")
+
 
 bot.run(TOKEN)
