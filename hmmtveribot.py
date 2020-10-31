@@ -44,23 +44,22 @@ def verify_member(member):
         TableName='Discord',
         KeyConditionExpression="DiscordHandle = :name",
         ExpressionAttributeValues={
-            ":name": {"S": str(member.name)}
+            ":name": {"S": str(member.name) + "#" + str(member.discriminator)}
             }
         )
-    if 'DiscordHandle' in response['Items']:
+    if response['Items'] != []:
         return True
     else:
         return False
 
 
-@tasks.loop(seconds=5)
+@tasks.loop(seconds=3600)
 async def recheck_members():
     if not_verified_users != []:
         for each_member in not_verified_users:
             if verify_member(each_member):
                 role = get(each_member.guild.roles, name='Competitor')
                 await each_member.add_roles(role)
-                print(f"{each_member.name} was given role Competitor")
 
 
 bot.run(TOKEN)
