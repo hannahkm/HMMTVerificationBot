@@ -33,7 +33,6 @@ async def on_member_join(member):
     if verify_member(member):
         role = get(member.guild.roles, name='Competitor')
         await member.add_roles(role)
-        print(f"{member.name} was given role Competitor")
     else:
         not_verified_users.append(member)
         await member.dm_channel.send("We are not able to verify you at this time. Please enter your discord ID on the HMMO website")
@@ -47,7 +46,7 @@ def verify_member(member):
             ":name": {"S": str(member.name) + "#" + str(member.discriminator)}
             }
         )
-    if response['Items'] != []:
+    if response['Items'] != [] and response['Items'][0]['Approved']['BOOL']:
         return True
     else:
         return False
